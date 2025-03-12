@@ -1,7 +1,12 @@
 
 from pymongo.mongo_client import MongoClient
+import dotenv
+import os
+dotenv.load_dotenv()
 
-uri = "mongodb+srv://gantasudarshanpaul:<db_password>@cluster0.lmgq4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_DB_URL = os.getenv("MONGO_DB_URL")
+
+uri = MONGO_DB_URL
 
 # Create a new client and connect to the server
 client = MongoClient(uri)
