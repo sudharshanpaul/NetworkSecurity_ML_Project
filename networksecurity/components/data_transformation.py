@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
+from sklearn.compose import ColumnTransformer
 
 from networksecurity.constant.training_pipeline import TARGET_COLUMN
 from networksecurity.constant.training_pipeline import DATA_TRANSFORMATION_IMPUTER_PARAMS
@@ -36,26 +38,101 @@ class DataTransformation:
         except Exception as e:
             raise NetworkSecurityException(e, sys)  
         
-    def get_data_transformer_object(cls)->Pipeline:
-        """
-        It initializes a KNN Imputer object with the parameters specified in the training_pipeline.py file and
-        returns a Pipeline object with the KNN Imputer object as the first step.
+    # def get_data_transformer_object(cls)->Pipeline:
+    #     """
+    #     It initializes a KNN Imputer object with the parameters specified in the training_pipeline.py file and
+    #     returns a Pipeline object with the KNN Imputer object as the first step.
 
-        Args:
-            cls: DataTransformation
+    #     Args:
+    #         cls: DataTransformation
         
-        returns:
-            A Pipeline object 
-        """
-        logging.info("Entered get_data_transformer_object method of transformation class")
+    #     returns:
+    #         A Pipeline object 
+    #     """
+    #     logging.info("Entered get_data_transformer_object method of transformation class")
 
+    #     try:
+    #         imputer: KNNImputer = KNNImputer(**DATA_TRANSFORMATION_IMPUTER_PARAMS)
+    #         logging.info(f"Initialize KNNImputer with {DATA_TRANSFORMATION_IMPUTER_PARAMS}")
+    #         processor:Pipeline = Pipeline([('imputer',imputer)])
+    #         return processor
+    #     except Exception as e:
+    #         raise NetworkSecurityException(e, sys) 
+
+
+
+    def get_data_transformer_object(self) -> Pipeline:
+        """
+        Returns a transformation pipeline that:
+        - Applies StandardScaler to numerical features
+        - Applies Label Encoding to categorical features
+        """
         try:
-            imputer: KNNImputer = KNNImputer(**DATA_TRANSFORMATION_IMPUTER_PARAMS)
-            logging.info(f"Initialize KNNImputer with {DATA_TRANSFORMATION_IMPUTER_PARAMS}")
-            processor:Pipeline = Pipeline([('imputer',imputer)])
+            # numerical_columns = ['duration', 'src_bytes', 'dst_bytes']  
+            categorical_columns = ['protocol_type', 'service', 'flag'] 
+            numerical_columns = ['duration',
+                 'src_bytes',
+                 'dst_bytes',
+                 'land',
+                 'wrong_fragment',
+                 'urgent',
+                 'hot',
+                 'num_failed_logins',
+                 'logged_in',
+                 'num_compromised',
+                 'root_shell',
+                 'su_attempted',
+                 'num_root',
+                 'num_file_creations',
+                 'num_shells',
+                 'num_access_files',
+                 'num_outbound_cmds',
+                 'is_host_login',
+                 'is_guest_login',
+                 'count',
+                 'srv_count',
+                 'serror_rate',
+                 'srv_serror_rate',
+                 'rerror_rate',
+                 'srv_rerror_rate',
+                 'same_srv_rate',
+                 'diff_srv_rate',
+                 'srv_diff_host_rate',
+                 'dst_host_count',
+                 'dst_host_srv_count',
+                 'dst_host_same_srv_rate',
+                 'dst_host_diff_srv_rate',
+                 'dst_host_same_src_port_rate',
+                 'dst_host_srv_diff_host_rate',
+                 'dst_host_serror_rate',
+                 'dst_host_srv_serror_rate',
+                 'dst_host_rerror_rate',
+                 'dst_host_srv_rerror_rate',
+                 'level']  
+
+            # Define the transformers
+            numerical_transformer = Pipeline(steps=[
+                ("imputer", KNNImputer(n_neighbors=5)),  # KNN Imputer for missing values
+                ("scaler", StandardScaler())  # StandardScaler after imputing
+            ])
+
+            categorical_transformer = OneHotEncoder(handle_unknown="ignore")  # OneHotEncoder for categorical features
+
+            # Create column transformer
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ("num", numerical_transformer, numerical_columns),
+                    ("cat", categorical_transformer, categorical_columns),
+                ]
+            )
+
+            # Create pipeline
+            processor = Pipeline(steps=[("preprocessor", preprocessor)])
             return processor
+
         except Exception as e:
-            raise NetworkSecurityException(e, sys) 
+            raise NetworkSecurityException(e, sys)
+
 
         
     # def initiate_data_transformation(self)->DataTransformationArtifact:
@@ -113,57 +190,37 @@ class DataTransformation:
         logging.info('Entered initiate_data_transformation method of DataTransformation class')
         try:
             logging.info('Starting Data Transformation')
+
+            # Read training and testing data
             train_df = DataTransformation.read_data(self.data_validation_artifact.valid_train_file_path)
             test_df = DataTransformation.read_data(self.data_validation_artifact.valid_test_file_path)
 
-            train_df.loc[train_df[TARGET_COLUMN] == "normal", "attack"] = 'normal'
-            train_df.loc[train_df[TARGET_COLUMN] != 'normal', "attack"] = 'attack'
+            # Convert target column values
+            train_df["attack"] = train_df[TARGET_COLUMN].apply(lambda x: 'normal' if x == 'normal' else 'attack')
+            test_df["attack"] = test_df[TARGET_COLUMN].apply(lambda x: 'normal' if x == 'normal' else 'attack')
 
-            test_df.loc[test_df[TARGET_COLUMN] == "normal", "attack"] = 'normal'
-            test_df.loc[test_df[TARGET_COLUMN] != 'normal', "attack"] = 'attack'
-
-            ## Separate input features and target
+            # Separate input features and target
             input_feature_train_df = train_df.drop(columns=[TARGET_COLUMN], axis=1)
-            target_feature_train_df = train_df[TARGET_COLUMN]
+            target_feature_train_df = train_df[TARGET_COLUMN].replace({'normal': 0, 'attack': 1})
 
             input_feature_test_df = test_df.drop(columns=[TARGET_COLUMN], axis=1)
-            target_feature_test_df = test_df[TARGET_COLUMN]
+            target_feature_test_df = test_df[TARGET_COLUMN].replace({'normal': 0, 'attack': 1})
 
-            target_feature_train_df = target_feature_train_df.replace({'normal': 0, 'attack': 1})
-            target_feature_test_df = target_feature_test_df.replace({'normal': 0, 'attack': 1})
-
-            # Identify categorical and numerical columns
-            categorical_columns = ['protocol_type', 'service', 'flag']  # Update based on your dataset
-            numerical_columns = [col for col in input_feature_train_df.columns if col not in categorical_columns]
-
-            # Handle missing values in categorical columns using mode
-            for col in categorical_columns:
-                mode_value = input_feature_train_df[col].mode()[0]  # Get most frequent value
-                input_feature_train_df[col].fillna(mode_value, inplace=True)
-                input_feature_test_df[col].fillna(mode_value, inplace=True)
-
-            # Apply KNN Imputer only to numerical columns
+            # Get the preprocessor
             preprocessor = self.get_data_transformer_object()
-            preprocessor_object = preprocessor.fit(input_feature_train_df[numerical_columns])
-            
-            transformed_input_train_feature = preprocessor.transform(input_feature_train_df[numerical_columns])
-            transformed_input_test_feature = preprocessor.transform(input_feature_test_df[numerical_columns])
 
-            # Convert back to DataFrame and reattach categorical columns
-            transformed_train_df = pd.DataFrame(transformed_input_train_feature, columns=numerical_columns)
-            transformed_train_df[categorical_columns] = input_feature_train_df[categorical_columns].reset_index(drop=True)
+            # Fit and transform the training data, transform test data
+            transformed_input_train_feature = preprocessor.fit_transform(input_feature_train_df)
+            transformed_input_test_feature = preprocessor.transform(input_feature_test_df)
 
-            transformed_test_df = pd.DataFrame(transformed_input_test_feature, columns=numerical_columns)
-            transformed_test_df[categorical_columns] = input_feature_test_df[categorical_columns].reset_index(drop=True)
-
-            # Convert to NumPy arrays for saving
-            train_arr = np.c_[transformed_train_df.values, np.array(target_feature_train_df)]
-            test_arr = np.c_[transformed_test_df.values, np.array(target_feature_test_df)]
+            # Convert to NumPy arrays and add target column
+            train_arr = np.c_[transformed_input_train_feature, np.array(target_feature_train_df)]
+            test_arr = np.c_[transformed_input_test_feature, np.array(target_feature_test_df)]
 
             # Save transformed data
             save_numpy_array_data(self.data_transformation_config.transformed_train_file_path, array=train_arr)
             save_numpy_array_data(self.data_transformation_config.transformed_test_file_path, array=test_arr)
-            save_object(self.data_transformation_config.transformed_object_file_path, preprocessor_object)
+            save_object(self.data_transformation_config.transformed_object_file_path, preprocessor)
 
             # Prepare Artifact
             data_transformation_artifact = DataTransformationArtifact(
@@ -176,3 +233,4 @@ class DataTransformation:
 
         except Exception as e:
             raise NetworkSecurityException(e, sys)
+

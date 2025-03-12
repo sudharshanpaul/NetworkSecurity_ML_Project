@@ -178,9 +178,16 @@ class DataIngestion:
 
     def split_data_as_train_test(self,dataframe: pd.DataFrame):
         try:
+            # train_set, test_set = train_test_split(
+            #     dataframe, test_size = self.data_ingestion_config.train_test_split_ratio
+            # ) 
+
             train_set, test_set = train_test_split(
-                dataframe, test_size = self.data_ingestion_config.train_test_split_ratio
-            ) 
+                dataframe,
+                test_size=self.data_ingestion_config.train_test_split_ratio,
+                random_state=42,
+                stratify=dataframe['target_column'] if 'target_column' in dataframe.columns else None
+            )
             logging.info("Performed train test split on dataframe")
 
             logging.info(
