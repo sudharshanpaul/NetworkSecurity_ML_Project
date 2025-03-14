@@ -108,7 +108,8 @@ class DataTransformation:
                  'dst_host_srv_serror_rate',
                  'dst_host_rerror_rate',
                  'dst_host_srv_rerror_rate',
-                 'level']  
+                #  'level'
+                 ]  
 
             # Define the transformers
             numerical_transformer = Pipeline(steps=[
@@ -200,11 +201,15 @@ class DataTransformation:
             test_df["attack"] = test_df[TARGET_COLUMN].apply(lambda x: 'normal' if x == 'normal' else 'attack')
 
             # Separate input features and target
-            input_feature_train_df = train_df.drop(columns=[TARGET_COLUMN], axis=1)
+            input_feature_train_df = train_df.drop(columns=[TARGET_COLUMN,'level'], axis=1)
             target_feature_train_df = train_df[TARGET_COLUMN].replace({'normal': 0, 'attack': 1})
 
-            input_feature_test_df = test_df.drop(columns=[TARGET_COLUMN], axis=1)
+            print(target_feature_train_df.value_counts())
+
+            input_feature_test_df = test_df.drop(columns=[TARGET_COLUMN,'level'], axis=1)
             target_feature_test_df = test_df[TARGET_COLUMN].replace({'normal': 0, 'attack': 1})
+
+            print(target_feature_test_df.value_counts())
 
             # Get the preprocessor
             preprocessor = self.get_data_transformer_object()
@@ -222,6 +227,8 @@ class DataTransformation:
             save_numpy_array_data(self.data_transformation_config.transformed_test_file_path, array=test_arr)
             save_object(self.data_transformation_config.transformed_object_file_path, preprocessor)
 
+            save_object("final_models/preprocessor.pkl",preprocessor)
+
             # Prepare Artifact
             data_transformation_artifact = DataTransformationArtifact(
                 transformed_object_file_path=self.data_transformation_config.transformed_object_file_path,
@@ -233,4 +240,5 @@ class DataTransformation:
 
         except Exception as e:
             raise NetworkSecurityException(e, sys)
+
 
